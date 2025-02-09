@@ -61,3 +61,9 @@ group :test do
   gem "capybara"
   gem "selenium-webdriver"
 end
+
+# Devise for authentication
+gem "devise", "~> 4.9"
+
+# Ollama API
+gem 'ollama-ai', '~> 1.3.0'
