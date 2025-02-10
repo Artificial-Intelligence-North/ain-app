@@ -7,7 +7,6 @@ class API::V1::AuthController < API::V1Controller
   )
 
   skip_before_action :authenticate_user!
-  respond_to :json
 
   def login
     user = User.find_by(email: params[:email])

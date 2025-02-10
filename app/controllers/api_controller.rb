@@ -14,18 +14,12 @@ class APIController < ApplicationController
   def authenticate_user!
     token = request.headers['Authorization']&.split('Bearer ')&.last
     data = JWT.decode(token, JWT_PUBLIC_KEY, true, { algorithm: 'RS256' })
+    JWT::Claims.verify_payload!(data, :exp)
 
-    user_id = data.first['id']
-    exp = data.first['exp']
+    user_id = data&.first['id']
+    @current_user = User.find(user_id)
 
-    if exp < Time.now.to_i
-      render json: { data: { errors: :unauthorized }}, status: :unauthorized
-    elsif User.find(user_id)
-      @current_user = User.find(user_id)
-    else
-      render json: { data: { errors: :unauthorized }}, status: :unauthorized
-    end
-  rescue JWT::DecodeError
+  rescue JWT::DecodeError, ActiveRecord::RecordNotFound
     render json: { data: { errors: :unauthorized }}, status: :unauthorized
   end
 end
