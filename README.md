@@ -24,3 +24,13 @@ Things you may want to cover:
 - Deployment instructions
 
 - ...
+
+# Generate JWT keys
+
+```sh
+openssl genrsa -out key.pem 512
+```
+
+```sh
+openssl rsa -in key.pem -outform PEM -pubout -out public.pem
+```

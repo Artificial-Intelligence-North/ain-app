@@ -67,3 +67,9 @@ gem "devise", "~> 4.9"
 
 # Ollama API
 gem 'ollama-ai', '~> 1.3.0'
+
+# CORS
+gem 'rack-cors'
+
+# JWT
+gem 'jwt'
