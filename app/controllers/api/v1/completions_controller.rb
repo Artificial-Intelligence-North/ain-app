@@ -19,46 +19,40 @@ class API::V1::CompletionsController < API::V1Controller
     @completion = Completion.new(completion_params)
     @completion.user = @current_user
 
+    # set the response to a stream of newline delimited JSON
     if stream_requested?
-      # set the response to a stream of newline delimited JSON
       response.headers["Content-Type"] = "application/x-ndjson; charset=utf-8"
-      buffered_response = StringIO.new
+    end
 
-      begin
-        # generate a completion using Ollama completion API
-        @client.generate({
-          model: @completion.model,
-          prompt: @completion.prompt,
-        }) do |event, raw|
-          # write the event to the response stream
-          response.stream.write(ndjson({
-            model: event["model"],
-            created_at: event["created_at"],
-            response: event["response"],
-            done: event["done"],
-          }))
-          # buffer the response so we can assemble the response
-          buffered_response << event["response"]
+    buffered_response = StringIO.new
 
-          # we can close the stream as soon as the completion is done
-          if event["done"]
-            response.stream.close
-          end
-        end
-      rescue ActionController::Live::ClientDisconnected
-        # noop
-      end
-      # get the complete response string
-      @completion.response = buffered_response.string
-    else
-      data = @client.generate({
+    begin
+      # generate a completion using Ollama completion API
+      @client.generate({
         model: @completion.model,
         prompt: @completion.prompt,
-        stream: false,
-      })
+        stream: stream_requested?,
+      }) do |event, raw|
+        # write the event to the response stream
+        response.stream.write(ndjson({
+          model: event["model"],
+          created_at: event["created_at"],
+          response: event["response"],
+          done: event["done"],
+        }))
+        # buffer the response so we can assemble the response
+        buffered_response << event["response"]
 
-      @completion.response = data[0]["response"]
+        # we can close the stream as soon as the completion is done
+        if event["done"]
+          response.stream.close
+        end
+      end
+    rescue ActionController::Live::ClientDisconnected
+      # noop
     end
+    # get the complete response string
+    @completion.response = buffered_response&.string
 
     if save_requested? && @completion.new_record?
       if @completion.save

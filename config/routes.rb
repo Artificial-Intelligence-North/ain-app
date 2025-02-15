@@ -13,17 +13,17 @@ Rails.application.routes.draw do
   root "home#index"
 
   # user sessions
-  devise_for :users, path: 'auth', path_names: {
-    sign_in: 'login',
-    sign_out: 'logout',
-    registration: 'signup'
-  }
+  devise_for :users, path: "auth", path_names: {
+                       sign_in: "login",
+                       sign_out: "logout",
+                       registration: "signup",
+                     }
 
   # API routes
   namespace :api do
-    scope '(v1)', module: :v1 do
+    scope "(v1)", module: :v1 do
       scope :auth do
-        post 'login', to: 'auth#login'
+        post "login", to: "auth#login"
       end
       resources :completions, only: %i[index show create update destroy]
       resources :chats, only: %i[index show create update destroy] do
