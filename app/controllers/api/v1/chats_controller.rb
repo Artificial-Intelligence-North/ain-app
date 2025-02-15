@@ -4,33 +4,22 @@ class API::V1::ChatsController < API::V1Controller
   # GET /chats or /chats.json
   def index
     @chats = Chat.all
+    render json: { data: @chats }
   end
 
   # GET /chats/1 or /chats/1.json
   def show
-  end
-
-  # GET /chats/new
-  def new
-    @chat = Chat.new
-  end
-
-  # GET /chats/1/edit
-  def edit
+    render json: { data: @chat }
   end
 
   # POST /chats or /chats.json
   def create
     @chat = Chat.new(chat_params)
 
-    respond_to do |format|
-      if @chat.save
-        format.html { redirect_to @chat, notice: "Chat was successfully created." }
-        format.json { render :show, status: :created, location: @chat }
-      else
-        format.html { render :new, status: :unprocessable_entity }
-        format.json { render json: @chat.errors, status: :unprocessable_entity }
-      end
+    if @chat.save
+      head :created, location: @chat
+    else
+      render json: { data: @chat.errors }, status: :unprocessable
     end
   end
 
@@ -50,11 +39,7 @@ class API::V1::ChatsController < API::V1Controller
   # DELETE /chats/1 or /chats/1.json
   def destroy
     @chat.destroy!
-
-    respond_to do |format|
-      format.html { redirect_to chats_path, status: :see_other, notice: "Chat was successfully destroyed." }
-      format.json { head :no_content }
-    end
+    head :no_content
   end
 
   private

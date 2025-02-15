@@ -1,102 +1,83 @@
-require 'ollama-ai'
+require "ollama-ai"
 
 class API::V1::CompletionsController < API::V1Controller
   include ActionController::Live
 
   before_action :set_completion, only: %i[ show update destroy ]
+  before_action :set_client, only: %i[ create ]
 
   def index
     @completions = Completion.all
     render json: { data: @completions }
   end
-  
+
   def show
     render json: { data: @completion }
   end
 
   def create
     @completion = Completion.new(completion_params)
+    @completion.user = @current_user
 
-    client = Ollama.new(
-        credentials: {
-          address: 'http://localhost:11434',
-        },
-        options: {
-          server_sent_events: true
-        }
-      )
-
-    if ActiveModel::Type::Boolean.new.cast(params[:stream])
-      response.headers['Content-Type'] = 'application/x-ndjson; charset=utf-8'
-
+    if stream_requested?
+      # set the response to a stream of newline delimited JSON
+      response.headers["Content-Type"] = "application/x-ndjson; charset=utf-8"
       buffered_response = StringIO.new
 
       begin
-        client.generate({
+        # generate a completion using Ollama completion API
+        @client.generate({
           model: @completion.model,
           prompt: @completion.prompt,
         }) do |event, raw|
+          # write the event to the response stream
           response.stream.write(ndjson({
-            model: event['model'],
-            created_at: event['created_at'],
-            response: event['response'],
-            done: event['done'],
+            model: event["model"],
+            created_at: event["created_at"],
+            response: event["response"],
+            done: event["done"],
           }))
-          buffered_response << event['response']
-          
-          if event['done']
+          # buffer the response so we can assemble the response
+          buffered_response << event["response"]
+
+          # we can close the stream as soon as the completion is done
+          if event["done"]
             response.stream.close
           end
         end
-
-        @completion.response = buffered_response.string
-
-        if ActiveModel::Type::Boolean.new.cast(params[:save])
-          puts @completion.inspect
-          if @completion.save
-            # TODO: response?
-          else
-            # error?
-            # TODO response?
-          end
-        else 
-          # TODO noop?
-        end
-
       rescue ActionController::Live::ClientDisconnected
-        # TODO: log the error
-        # TODO: response?
+        # noop
       end
-
+      # get the complete response string
+      @completion.response = buffered_response.string
     else
-      data = client.generate({
+      data = @client.generate({
         model: @completion.model,
         prompt: @completion.prompt,
         stream: false,
       })
-      
-      @completion.response = data[0]['response']
 
-      if ActiveModel::Type::Boolean.new.cast(params[:save])
-        if @completion.save
-          head :created, location: @completion      
-        else
-          render json: { data: { errors: @completion.errors }}, status: :unprocessable_entity
-        end
-      else 
-        render json: { data: @completion }
+      @completion.response = data[0]["response"]
+    end
+
+    if save_requested? && @completion.new_record?
+      if @completion.save
+        render json: { data: @completion }, status: :created
+      else
+        render json: { data: { errors: @completion.errors } }, status: :unprocessable_entity
       end
+    else
+      render json: { data: @completion }, status: :ok
     end
   ensure
     response.stream.close
   end
 
-  
   def update
     if @completion.update(completion_params)
-      head :ok, location: @completion
+      render json: { data: @completion }, status: :ok
     else
-      render json: { data: { errors: @completion.errors }}, status: :unprocessable_entity
+      render json: { data: { errors: @completion.errors } }, status: :unprocessable_entity
     end
   end
 
@@ -106,19 +87,40 @@ class API::V1::CompletionsController < API::V1Controller
     head :no_content
   end
 
+  protected
+
+  def stream_requested?
+    ActiveModel::Type::Boolean.new.cast(params[:stream])
+  end
+
+  def save_requested?
+    ActiveModel::Type::Boolean.new.cast(params[:save])
+  end
+
   private
 
-    def ndjson(data)
-      data.to_json() + "\n"
-    end
+  def ndjson(data)
+    data.to_json() + "\n"
+  end
 
-    # Use callbacks to share common setup or constraints between actions.
-    def set_completion
-      @completion = Completion.find(params.expect(:id))
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_completion
+    @completion = Completion.find(params.expect(:id))
+  end
 
-    # Only allow a list of trusted parameters through.
-    def completion_params
-      params.expect(completion: [ :prompt, :model ])
-    end
+  def set_client
+    @client = Ollama.new(
+      credentials: {
+        address: "http://localhost:11434",
+      },
+      options: {
+        server_sent_events: true,
+      },
+    )
+  end
+
+  # Only allow a list of trusted parameters through.
+  def completion_params
+    params.expect(completion: [:prompt, :model])
+  end
 end
